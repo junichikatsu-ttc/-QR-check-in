@@ -184,7 +184,9 @@ function cliVersion() {
 
 function newDeployId() {
   // /v1/health の commit と file-version 名に使う。英数字のみ・12 文字以内（?v= の版にもそのまま使える）
-  return `d${Date.now().toString(36)}`
+  // CI は DEPLOY_ID（git SHA など）を渡す。英数字以外は落とし、先頭 12 文字に切る
+  const given = (process.env.DEPLOY_ID ?? '').replace(/[^A-Za-z0-9]/g, '').slice(0, 12)
+  return given || `d${Date.now().toString(36)}`
 }
 
 function build(/** @type {string} */ deployId) {
@@ -423,7 +425,9 @@ async function cmdDeploy() {
       '--name',
       name,
       '--comment',
-      `local deploy ${new Date().toISOString()} by ${userInfo().username}`,
+      process.env.GITHUB_ACTIONS
+        ? `ci deploy ${new Date().toISOString()} by ${process.env.GITHUB_ACTOR ?? 'github-actions'} (${process.env.GITHUB_REF_NAME ?? ''})`
+        : `local deploy ${new Date().toISOString()} by ${userInfo().username}`,
     ])
   } catch (err) {
     // デプロイ自体は済んでいるので、バージョン記録の失敗で全体を落とさない

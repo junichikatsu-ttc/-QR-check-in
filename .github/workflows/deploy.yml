@@ -1,0 +1,96 @@
+# enebular へのデプロイ。deploy.mjs をそのまま使う（ローカルと同じ手順）。
+#
+# 設定は GitHub Environment（Settings → Environments）に置く。環境名を入力で切り替える。
+#   Secrets  : ENEBULAR_ACCESS_KEY / ENEBULAR_SECRET_KEY
+#   Variables: ENEBULAR_PROJECT_ID / ENEBULAR_CLOUD_ID / ENEBULAR_FILE_ASSET_ID / ENEBULAR_HTTP_TRIGGER_URL
+#
+# 既定は「ZIP の差し替えとデプロイだけ」。関数の環境変数（FN_*）には触らない。
+# apply_config を true にすると enebular:config も流す。その場合は FN_* も Environment に全部置くこと
+# （envVars は送った内容で置き換わるので、欠けたキーは実行環境から消える）。
+#   Secrets  : FN_SESSION_SECRET / FN_TEACHER_PASSWORD
+#   Variables: FN_DS_TABLE_ROSTER / FN_DS_TABLE_EVENTS / FN_DS_TABLE_CHECKINS / ENEBULAR_HTTP_TRIGGER_PATH
+#              （任意: FN_QR_TTL_SEC / FN_SESSION_TTL_HOURS / FN_TENANT_ID / FN_LOG_LEVEL / ENEBULAR_TIMEOUT）
+#
+# 最初は手動実行（workflow_dispatch）のみ。main への push で自動デプロイしたくなったら下のコメントを外す。
+name: Deploy to enebular
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: デプロイ先の GitHub Environment
+        type: environment
+        required: true
+        default: production
+      apply_config:
+        description: enebular:config も実行する（FN_* を Environment に全部置いてから）
+        type: boolean
+        default: false
+  # push:
+  #   branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ inputs.environment || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment || 'production' }}
+      url: ${{ vars.ENEBULAR_HTTP_TRIGGER_URL }}
+    env:
+      ENEBULAR_ACCESS_KEY: ${{ secrets.ENEBULAR_ACCESS_KEY }}
+      ENEBULAR_SECRET_KEY: ${{ secrets.ENEBULAR_SECRET_KEY }}
+      ENEBULAR_PROJECT_ID: ${{ vars.ENEBULAR_PROJECT_ID }}
+      ENEBULAR_CLOUD_ID: ${{ vars.ENEBULAR_CLOUD_ID }}
+      ENEBULAR_FILE_ASSET_ID: ${{ vars.ENEBULAR_FILE_ASSET_ID }}
+      ENEBULAR_HTTP_TRIGGER_URL: ${{ vars.ENEBULAR_HTTP_TRIGGER_URL }}
+      ENEBULAR_HTTP_TRIGGER_PATH: ${{ vars.ENEBULAR_HTTP_TRIGGER_PATH }}
+      ENEBULAR_TIMEOUT: ${{ vars.ENEBULAR_TIMEOUT }}
+      # /v1/health の commit と file-version 名に git SHA（先頭 12 桁）を使う
+      DEPLOY_ID: ${{ github.sha }}
+      # 関数の環境変数（apply_config のときだけ使われる）
+      FN_SESSION_SECRET: ${{ secrets.FN_SESSION_SECRET }}
+      FN_TEACHER_PASSWORD: ${{ secrets.FN_TEACHER_PASSWORD }}
+      FN_DS_TABLE_ROSTER: ${{ vars.FN_DS_TABLE_ROSTER }}
+      FN_DS_TABLE_EVENTS: ${{ vars.FN_DS_TABLE_EVENTS }}
+      FN_DS_TABLE_CHECKINS: ${{ vars.FN_DS_TABLE_CHECKINS }}
+      FN_QR_TTL_SEC: ${{ vars.FN_QR_TTL_SEC }}
+      FN_SESSION_TTL_HOURS: ${{ vars.FN_SESSION_TTL_HOURS }}
+      FN_TENANT_ID: ${{ vars.FN_TENANT_ID }}
+      FN_LOG_LEVEL: ${{ vars.FN_LOG_LEVEL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # 値の前後に空白や改行があると enebular CLI が認証エラーになる（原因表示が出ない）ので先に弾く
+      - name: Check secrets
+        run: |
+          for k in ENEBULAR_ACCESS_KEY ENEBULAR_SECRET_KEY ENEBULAR_PROJECT_ID ENEBULAR_CLOUD_ID ENEBULAR_FILE_ASSET_ID; do
+            v="${!k}"
+            if [ -z "$v" ]; then echo "::error::$k が Environment '${{ inputs.environment || 'production' }}' に設定されていません"; exit 1; fi
+            if [ "$v" != "$(printf '%s' "$v" | tr -d '[:space:]')" ]; then echo "::error::$k に空白または改行が含まれています"; exit 1; fi
+          done
+
+      - name: Typecheck and test
+        run: npm run typecheck && npm test
+
+      - name: Show config (masked)
+        run: npm run enebular:check
+
+      - name: Apply cloud config (trigger / datastore / envVars)
+        if: ${{ inputs.apply_config }}
+        run: npm run enebular:config
+
+      - name: Build, upload, deploy, smoke test
+        run: npm run enebular:deploy

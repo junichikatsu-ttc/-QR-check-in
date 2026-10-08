@@ -93,6 +93,27 @@ npm run enebular:smoke              # デプロイ済みの環境を確認
 運用上の注意（アクセス数の目安、QR の有効期限、名簿の更新が反映されるまでの時間）は
 [docs/operations.md](docs/operations.md)。
 
+### GitHub Actions からデプロイする
+
+`.github/workflows/deploy.yml` が `deploy.mjs` をそのまま実行する（手順はローカルと同じ）。
+設定は **GitHub Environment**（Settings → Environments → `production` など）に置く。
+
+| 種別 | 名前 | 値 |
+| :--- | :--- | :--- |
+| Secret | `ENEBULAR_ACCESS_KEY` / `ENEBULAR_SECRET_KEY` | enebular のアクセスキー |
+| Variable | `ENEBULAR_PROJECT_ID` / `ENEBULAR_CLOUD_ID` / `ENEBULAR_FILE_ASSET_ID` | `.env.deploy` と同じ値 |
+| Variable | `ENEBULAR_HTTP_TRIGGER_URL` | 例: `https://xxxx.enebular.com/ttc-qr-checkin/` |
+
+実行は Actions タブ → **Deploy to enebular** → Run workflow（環境を選ぶ）。
+ビルド → ZIP 差し替え → デプロイ → バージョン記録 → スモークテストまで通し、
+`/v1/health` の `commit` は git SHA の先頭 12 桁になる。
+
+- 既定では**関数の環境変数（`FN_*`）には触らない**。`apply_config` にチェックを入れると
+  `enebular:config` も流すが、その場合は `FN_*` と `ENEBULAR_HTTP_TRIGGER_PATH` を
+  Environment に**全部**置くこと（`envVars` は送った内容で置き換わる）
+- `main` への push で自動デプロイしたいときは、`deploy.yml` の `push:` のコメントを外す
+- `.github/workflows/ci.yml` は push / PR で typecheck・test・ZIP ビルドまでを検証する（enebular には触らない）
+
 ## 増やすときの手順
 
 | やること | 触るファイル |

@@ -1,0 +1,48 @@
+# 検証のみ（enebular には触らない）。push と PR で動く。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # ZIP が作れる構成かをここで確かめる（ルート直下に index.js / package.json、handler が関数）
+      - name: Build ZIP (dry run)
+        run: npm run build
+
+      - name: Verify ZIP layout
+        run: node deploy.mjs deploy --dry-run --skip-build --no-smoke
+        env:
+          ENEBULAR_PROJECT_ID: dry-run
+          ENEBULAR_CLOUD_ID: dry-run
+          ENEBULAR_FILE_ASSET_ID: dry-run
+          ENEBULAR_ACCESS_KEY: dry-run
+          ENEBULAR_SECRET_KEY: dry-run
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qr-checkin-function-${{ github.sha }}
+          path: qr-checkin-function.zip
+          retention-days: 7
