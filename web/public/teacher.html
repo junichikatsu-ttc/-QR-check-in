@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#2563eb" />
+    <title>QRチェックイン（先生）</title>
+    <!-- ?v=__ASSET_VERSION__ を外さないこと（index.html のコメント参照） -->
+    <link rel="stylesheet" href="styles.css?v=__ASSET_VERSION__" />
+  </head>
+  <body>
+    <main class="app">
+      <!-- ログイン -->
+      <section data-view="login" id="login-view" hidden>
+        <header class="app-header">
+          <h1>先生ログイン</h1>
+          <a class="header-link" href="./">生徒画面へ</a>
+        </header>
+        <form id="login-form" class="stack">
+          <input id="teacher-name" type="text" maxlength="32" placeholder="表示名（例: 山田）任意" autocomplete="nickname" />
+          <input id="password" type="password" placeholder="先生用パスワード" autocomplete="current-password" required />
+          <button id="login-button" type="submit" class="primary">ログイン</button>
+        </form>
+        <p id="login-error" class="error" hidden></p>
+      </section>
+
+      <!-- イベント一覧 -->
+      <section data-view="events" id="events-view" hidden>
+        <header class="app-header">
+          <h1>イベント</h1>
+          <nav class="header-nav">
+            <a class="header-link" href="#/roster">名簿</a>
+            <button type="button" class="link" data-logout>ログアウト</button>
+          </nav>
+        </header>
+        <p id="roster-count" class="muted"></p>
+        <form id="event-form" class="card stack">
+          <input id="event-name" type="text" maxlength="64" placeholder="イベント名（例: 10/8 帰りのバス）" required />
+          <div id="class-chips" class="chips"></div>
+          <button type="submit" class="primary">作成してスキャンを始める</button>
+        </form>
+        <ul id="event-list" class="list"></ul>
+      </section>
+
+      <!-- 名簿 -->
+      <section data-view="roster" id="roster-view" hidden>
+        <header class="app-header">
+          <h1>名簿</h1>
+          <nav class="header-nav"><a class="header-link" href="#/events">← イベント</a></nav>
+        </header>
+        <p class="lead">
+          Excel などから「学籍番号・氏名・クラス」の列をコピーして貼り付けてください（タブ区切り・カンマ区切りどちらでも可。クラスは省略可）。
+        </p>
+        <textarea id="roster-text" rows="12" spellcheck="false" placeholder="2024001	山田 太郎	1-A&#10;2024002	鈴木 花子	1-A"></textarea>
+        <p id="roster-preview" class="muted"></p>
+        <ul id="roster-errors" class="error-list" hidden></ul>
+        <button id="roster-save" type="button" class="primary">名簿を保存（全置換）</button>
+        <p class="hint">保存すると名簿が丸ごと置き換わります。生徒はこの名簿にある学籍番号でログインします。</p>
+      </section>
+
+      <!-- イベント詳細 -->
+      <section data-view="event" id="event-view" hidden>
+        <header class="app-header">
+          <div>
+            <h1 id="event-title"></h1>
+            <div id="event-sub" class="muted"></div>
+          </div>
+          <nav class="header-nav"><a class="header-link" href="#/events">← 一覧</a></nav>
+        </header>
+
+        <div class="summary-box">
+          <div id="summary" class="summary">0 / 0</div>
+          <div id="summary-sub" class="muted"></div>
+        </div>
+
+        <div class="tabs" role="tablist">
+          <button id="tab-scan" type="button" class="tab" role="tab">スキャン</button>
+          <button id="tab-list" type="button" class="tab" role="tab">一覧</button>
+        </div>
+
+        <div id="pane-scan" hidden>
+          <input id="point" type="text" maxlength="32" placeholder="読み取り地点（例: バス1）任意" class="point" />
+          <div class="video-box">
+            <video id="video" autoplay playsinline muted></video>
+            <div class="video-frame"></div>
+          </div>
+          <p id="camera-error" class="error" hidden></p>
+          <div id="scan-result" class="result" hidden>
+            <div id="result-title" class="result-title"></div>
+            <div id="result-sub" class="result-sub"></div>
+          </div>
+          <form id="manual-form" class="form">
+            <input id="manual-id" type="text" inputmode="latin" autocapitalize="characters" maxlength="32" placeholder="学籍番号を手入力" />
+            <button type="submit" class="secondary">手動</button>
+          </form>
+        </div>
+
+        <div id="pane-list" hidden>
+          <div class="toolbar">
+            <div class="segmented">
+              <label><input type="radio" name="filter" value="all" checked /><span>すべて</span></label>
+              <label><input type="radio" name="filter" value="remaining" /><span>未</span></label>
+              <label><input type="radio" name="filter" value="done" /><span>済</span></label>
+            </div>
+            <button id="refresh" type="button" class="secondary small">更新</button>
+            <button id="export" type="button" class="secondary small">CSV</button>
+          </div>
+          <input id="search" type="search" placeholder="名前・学籍番号で絞り込み" />
+          <ul id="student-list" class="list"></ul>
+          <div id="extra-box" hidden>
+            <h2 class="section-title">対象外のチェックイン</h2>
+            <ul id="extra-list" class="list"></ul>
+          </div>
+        </div>
+      </section>
+    </main>
+    <div id="toast" class="toast" hidden></div>
+
+    <script src="teacher.js?v=__ASSET_VERSION__"></script>
+  </body>
+</html>
